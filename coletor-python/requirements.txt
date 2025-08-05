@@ -1,0 +1,4 @@
+psutil
+inquirer
+requests
+pyinstaller

@@ -46,10 +46,13 @@ projeto-inventario/
 
 ### Coletor
 1. Navegue até o diretório `coletor-python`
-2. Ative o ambiente virtual:
+2. Crie e ative o ambiente virtual:
+   - `python -m venv venv`
    - Windows: `.\venv\Scripts\activate`
    - Linux/Mac: `source venv/bin/activate`
-3. Para empacotar o coletor em um executável:
+3. Instale as dependências:
+   - `pip install -r requirements.txt`
+4. Para empacotar o coletor em um executável:
    - Execute: `python empacotar.py`
    - O executável será gerado no diretório `builds`
 
