@@ -1,4 +1,5 @@
+# Dependências de tempo de execução para o coletor
 psutil
-inquirer
 requests
-pyinstaller
+WMI
+pywin32
