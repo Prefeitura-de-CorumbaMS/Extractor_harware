@@ -117,6 +117,7 @@
                             <th>Setor</th>
                             <th>Matrícula</th>
                             <th>Nome Completo</th>
+                            <th>Usuário Logado</th>
                             <th>Nome do Dispositivo</th>
                             <th>Processador</th>
                             <th>Disco</th>
@@ -187,10 +188,38 @@
                     
                     // Formatar monitores
                     let monitoresStr = '';
-                    if (item.monitores && item.monitores.length > 0) {
-                        monitoresStr = item.monitores
-                            .map(m => `${m.marca || 'N/A'} ${m.modelo || 'N/A'} ${m.tamanho || 'N/A'}`)
-                            .join(', ');
+                    
+                    // Verificar se monitores é uma string JSON e fazer parse se necessário
+                    let monitoresArray = [];
+                    if (item.monitores) {
+                        try {
+                            // Se já for um objeto, usar diretamente
+                            if (typeof item.monitores === 'object') {
+                                monitoresArray = item.monitores;
+                            } 
+                            // Se for string, tentar fazer parse
+                            else if (typeof item.monitores === 'string') {
+                                monitoresArray = JSON.parse(item.monitores);
+                            }
+                            
+                            // Se for um array, usar map
+                            if (Array.isArray(monitoresArray) && monitoresArray.length > 0) {
+                                monitoresStr = monitoresArray
+                                    .map(m => `${m.marca || m.fabricante || 'N/A'} ${m.modelo || 'N/A'} ${m.tamanho || 'N/A'}`)
+                                    .join(', ');
+                            } 
+                            // Se for uma string formatada (não um array), exibir diretamente
+                            else if (typeof item.monitores === 'string') {
+                                monitoresStr = item.monitores.replace(/\\n/g, '<br>');
+                            }
+                            else {
+                                monitoresStr = 'Formato desconhecido';
+                            }
+                        } catch (e) {
+                            // Se falhar o parse, exibir a string diretamente
+                            monitoresStr = typeof item.monitores === 'string' ? 
+                                item.monitores.replace(/\\n/g, '<br>') : 'Erro ao processar dados dos monitores';
+                        }
                     } else {
                         monitoresStr = 'Nenhum monitor detectado';
                     }
@@ -206,6 +235,7 @@
                         <td>${item.setor}</td>
                         <td>${item.matricula}</td>
                         <td>${item.nomeCompleto}</td>
+                        <td>${item.usuarioLogado || 'N/A'}</td>
                         <td>${item.nomeDispositivo}</td>
                         <td>${item.processador}</td>
                         <td>${item.disco}</td>

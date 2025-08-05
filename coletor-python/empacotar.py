@@ -24,25 +24,26 @@ def main():
         print(f"Diretório de builds criado: {dir_builds}")
     
     # Comando PyInstaller
-    comando = [
-        "pyinstaller",
-        "--onefile",  # Criar um único arquivo executável
-        "--name=coletor",  # Nome do executável
-        "--hidden-import=wmi",  # Incluir módulo wmi explicitamente
-        "--hidden-import=pythoncom",  # Dependência do wmi
-        "--hidden-import=subprocess",  # Garantir que subprocess seja incluído
-        "--hidden-import=tempfile",  # Garantir que tempfile seja incluído
-        "--hidden-import=ctypes",  # Garantir que ctypes seja incluído
-        "--hidden-import=pypsrp",  # Biblioteca para comandos PowerShell
-        "--debug=imports",  # Ajuda a identificar problemas de importação
-      #  "--noconsole",  # Sem console para não mostrar terminal ao usuário
-        "--icon=NONE",  # Sem ícone (pode ser substituído por um caminho para um arquivo .ico)
-        "coletor.py"  # Script a ser empacotado
+    pyinstaller_args = [
+        '--onefile',
+        '--name=coletor',
+        '--hidden-import=wmi',
+        '--hidden-import=pythoncom',
+        '--hidden-import=subprocess',
+        '--hidden-import=tempfile',
+        '--hidden-import=ctypes',
+        '--hidden-import=pypsrp',
+        '--debug=imports',
+        '--icon=NONE',
+        #  "--noconsole",  # Sem console para não mostrar terminal ao usuário
+        '--add-data=coletar_monitores.ps1;.',  # Incluir o script PowerShell no executável
+        'coletor.py'
     ]
-    
+
     try:
-        # Executar PyInstaller
-        subprocess.run(comando, check=True)
+        # Executar o PyInstaller diretamente pelo módulo
+        import PyInstaller.__main__
+        PyInstaller.__main__.run(pyinstaller_args)
         print("PyInstaller executado com sucesso!")
         
         # Mover o executável para o diretório de builds

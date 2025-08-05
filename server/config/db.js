@@ -47,9 +47,9 @@ async function setupDatabase() {
         usuarioLogado VARCHAR(100) NOT NULL,
         nomeCompleto VARCHAR(200) NOT NULL,
         nomeDispositivo VARCHAR(100) NOT NULL,
-        processador VARCHAR(200) NOT NULL,
-        disco VARCHAR(100) NOT NULL,
-        ram VARCHAR(100) NOT NULL,
+        processador TEXT NOT NULL,
+        disco TEXT NOT NULL,
+        ram TEXT NOT NULL,
         monitores JSON,
         dataColeta DATETIME DEFAULT CURRENT_TIMESTAMP
       )

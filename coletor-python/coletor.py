@@ -361,284 +361,117 @@ def obter_info_ram():
         return "Erro ao obter informações da RAM"
 
 def obter_info_monitores():
-    """Obtém informações detalhadas dos monitores conectados usando comandos PowerShell específicos."""
-    monitores = []
-    
+    """Obtém informações detalhadas dos monitores conectados usando um script PowerShell externo.
+
+    Retorna:
+        str: Texto formatado com informações dos monitores (quantidade, modelo, fabricante, tamanho).
+    """
+    import subprocess  # Importação necessária para executar comandos PowerShell
+    import os          # Para operações de sistema de arquivos
+    import sys         # Para verificar se estamos executando como executável
+    import tempfile    # Para criar arquivos temporários
+    monitores_formatados = []
+
     try:
-        if platform.system() == "Windows":
-            import subprocess
-
-            def run_powershell_command(command_script):
-                """Executa um script PowerShell de forma segura e estável."""
-                try:
-                    # Executa o comando sem shell=True, passando o script como argumento.
-                    # Isso é mais robusto para executáveis PyInstaller.
-                    # Capturar a saída como bytes brutos para evitar erros de caracteres nulos
-                    process = subprocess.Popen(
-                        ["powershell.exe", "-Command", command_script],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE
-                    )
-                    stdout_bytes, stderr_bytes = process.communicate(timeout=15)
-
-                    # Decodificar e limpar a saída no Python
-                    stdout = stdout_bytes.decode('utf-8', errors='ignore').replace('\x00', '').strip()
-                    stderr = stderr_bytes.decode('utf-8', errors='ignore').replace('\x00', '').strip()
-                    
-                    if process.returncode != 0:
-                        print(f"Erro ao executar script PowerShell (código {process.returncode}):\n{stderr}")
-                        return None
-                    
-                    return stdout
-                
-                except subprocess.TimeoutExpired:
-                    print("Comando PowerShell excedeu o tempo limite de 15 segundos.")
-                    process.kill()
-                    return None
-                except Exception as e:
-                    print(f"Falha crítica ao executar PowerShell: {e}")
-                    return None
-
-            quantidade_monitores = 0
-            modelos_fabricantes = []
-            tamanhos = []
-            resolucoes = []
-            telas = []
-
-            # 1. Obter quantidade de monitores
-            print("\n--- Etapa 1: Coletando quantidade de monitores ---")
-            script_qtd = "(Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).Count"
-            resultado_qtd = run_powershell_command(script_qtd)
-            if resultado_qtd:
-                try:
-                    quantidade_monitores = int(resultado_qtd)
-                    print(f"Quantidade de monitores detectados: {quantidade_monitores}")
-                except (ValueError, TypeError):
-                    print(f"Erro ao converter quantidade: '{resultado_qtd}'")
-
-            # 2. Obter modelo e fabricante
-            print("\n--- Etapa 2: Coletando modelo e fabricante ---")
-            script_modelo = """
-            Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID | ForEach-Object {
-                $m = (-join ([System.Text.Encoding]::ASCII.GetString($_.UserFriendlyName))).Trim() -replace '\x00', ''
-                $f = (-join ([System.Text.Encoding]::ASCII.GetString($_.ManufacturerName))).Trim() -replace '\x00', ''
-                Write-Output ("MONITOR_INFO:" + $m + "|" + $f)
-            }
-            """
-            resultado_modelo = run_powershell_command(script_modelo)
-            if resultado_modelo:
-                for linha in resultado_modelo.split('\n'):
-                    if linha.startswith("MONITOR_INFO:"):
-                        info = linha.replace("MONITOR_INFO:", "").split('|', 1)
-                        if len(info) == 2:
-                            modelos_fabricantes.append((info[0].strip(), info[1].strip()))
-
-            # 3. Obter tamanho físico
-            print("\n--- Etapa 3: Coletando tamanho físico ---")
-            script_tamanho = """
-            Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorBasicDisplayParams | ForEach-Object {
-                Write-Output ("MONITOR_SIZE:" + $_.MaxHorizontalImageSize + "|" + $_.MaxVerticalImageSize)
-            }
-            """
-            resultado_tamanho = run_powershell_command(script_tamanho)
-            if resultado_tamanho:
-                for linha in resultado_tamanho.split('\n'):
-                    if linha.startswith("MONITOR_SIZE:"):
-                        info = linha.replace("MONITOR_SIZE:", "").split('|', 1)
-                        if len(info) == 2:
-                            try:
-                                tamanhos.append((int(info[0]), int(info[1])))
-                            except (ValueError, TypeError):
-                                print(f"Erro ao converter dimensões: {linha}")
-
-            # 4. Obter resolução
-            print("\n--- Etapa 4: Coletando resolução ---")
-            script_resolucao = """
-            Get-CimInstance -ClassName Win32_VideoController | ForEach-Object {
-                if ($_.CurrentHorizontalResolution -and $_.CurrentVerticalResolution) {
-                    Write-Output ("MONITOR_RES:" + $_.Name + "|" + $_.CurrentHorizontalResolution + "x" + $_.CurrentVerticalResolution)
-                }
-            }
-            """
-            resultado_resolucao = run_powershell_command(script_resolucao)
-            if resultado_resolucao:
-                for linha in resultado_resolucao.split('\n'):
-                    if linha.startswith("MONITOR_RES:"):
-                        info = linha.replace("MONITOR_RES:", "").split('|', 1)
-                        if len(info) == 2:
-                            resolucoes.append((info[0].strip(), info[1].strip()))
-
-            # 5. Obter informações de tela (System.Windows.Forms)
-            print("\n--- Etapa 5: Coletando informações de tela ---")
-            script_telas = """
-            Add-Type -AssemblyName System.Windows.Forms
-            [System.Windows.Forms.Screen]::AllScreens | ForEach-Object {
-                Write-Output ("SCREEN_INFO:" + $_.DeviceName + "|" + $_.Bounds.Width + "x" + $_.Bounds.Height + "|" + $_.Primary)
-            }
-            """
-            resultado_telas = run_powershell_command(script_telas)
-            if resultado_telas:
-                for linha in resultado_telas.split('\n'):
-                    if linha.startswith("SCREEN_INFO:"):
-                        info = linha.replace("SCREEN_INFO:", "").split('|', 2)
-                        if len(info) == 3:
-                            is_primary = info[2].strip().lower() == 'true'
-                            telas.append((info[0].strip(), info[1].strip(), is_primary))
-            
-            # Montar lista de monitores com todas as informações coletadas
-            # Primeiro, determinar a quantidade real de monitores
-            num_monitores = max([
-                quantidade_monitores,
-                len(modelos_fabricantes),
-                len(tamanhos),
-                len(resolucoes),
-                len(telas)
-            ])
-            
-            # Se não conseguiu detectar nenhum monitor, usar fallback
-            if num_monitores == 0:
-                num_monitores = 1  # Assume pelo menos um monitor
-            
-            # Criar lista de monitores
-            for i in range(num_monitores):
-                monitor_info = {
-                    "marca": "Desconhecida",
-                    "modelo": f"Monitor {i+1}",
-                    "tamanho": "Desconhecido",
-                    "resolucao": "Desconhecida",
-                    "monitor_primario": "Sim" if i == 0 else "Não"
-                }
-                
-                # Adicionar modelo e fabricante, se disponível
-                if i < len(modelos_fabricantes):
-                    modelo, fabricante = modelos_fabricantes[i]
-                    if modelo:
-                        monitor_info["modelo"] = modelo
-                    if fabricante:
-                        monitor_info["marca"] = fabricante
-                
-                # Adicionar tamanho, se disponível
-                if i < len(tamanhos):
-                    largura_cm, altura_cm = tamanhos[i]
-                    if largura_cm > 0 and altura_cm > 0:
-                        # Calcular diagonal em cm e converter para polegadas
-                        diagonal_cm = (largura_cm**2 + altura_cm**2)**0.5
-                        diagonal_polegadas = diagonal_cm / 2.54
-                        
-                        monitor_info["tamanho"] = f"{diagonal_polegadas:.1f}\""
-                        monitor_info["dimensoes"] = f"{largura_cm}cm x {altura_cm}cm"
-                
-                # Adicionar resolução e adaptador, se disponível
-                if i < len(resolucoes):
-                    adaptador, resolucao = resolucoes[i]
-                    monitor_info["resolucao"] = resolucao
-                    monitor_info["adaptador"] = adaptador
-                
-                # Adicionar informações de tela, se disponível
-                if i < len(telas):
-                    device, res, is_primary = telas[i]
-                    # Priorizar resolução do System.Windows.Forms se não tiver uma
-                    if monitor_info["resolucao"] == "Desconhecida":
-                        monitor_info["resolucao"] = res
-                    monitor_info["device_name"] = device
-                    monitor_info["monitor_primario"] = "Sim" if is_primary else "Não"
-                
-                # Adicionar à lista de monitores
-                monitores.append(monitor_info)
-            
-            # Se mesmo assim não tiver nenhum monitor, usar fallback para ctypes
-            if not monitores:
-                try:
-                    import ctypes
-                    user32 = ctypes.windll.user32
-                    # Obter resolução do monitor primário
-                    width = user32.GetSystemMetrics(0)
-                    height = user32.GetSystemMetrics(1)
-                    
-                    # Adicionar monitor primário
-                    monitores.append({
-                        "marca": "Detectado via API Windows",
-                        "modelo": "Monitor Principal",
-                        "tamanho": "Desconhecido",
-                        "resolucao": f"{width}x{height}",
-                        "monitor_primario": "Sim"
-                    })
-                    
-                    # Tentar detectar número total de monitores
-                    try:
-                        num_monitores = user32.GetSystemMetrics(80)  # SM_CMONITORS
-                        if num_monitores > 1:
-                            # Adicionar monitores adicionais genéricos
-                            for i in range(1, num_monitores):
-                                monitores.append({
-                                    "marca": "Detectado via API Windows",
-                                    "modelo": f"Monitor {i+1}",
-                                    "tamanho": "Desconhecido",
-                                    "resolucao": "Desconhecida",
-                                    "monitor_primario": "Não"
-                                })
-                    except Exception as e:
-                        print(f"Erro ao detectar múltiplos monitores: {e}")
-                        
-                except Exception as e:
-                    print(f"Erro ao usar ctypes: {e}")
-            
-            # Se ainda não detectou nenhum monitor, adicionar um genérico
-            if not monitores:
-                monitores = [{
-                    "marca": "Desconhecida",
-                    "modelo": "Monitor Principal",
-                    "tamanho": "Desconhecido",
-                    "resolucao": "Desconhecida",
-                    "monitor_primario": "Sim"
-                }]
+        # Determinar o caminho base (diferente se executado como script ou como executável)
+        if getattr(sys, 'frozen', False):
+            # Executando como executável empacotado
+            base_path = sys._MEIPASS
         else:
-            # Para sistemas não-Windows
-            monitores = [{
-                "marca": "Desconhecida",
-                "modelo": "Sistema não-Windows",
-                "tamanho": "Desconhecido",
-                "resolucao": "Desconhecida"
-            }]
-    
+            # Executando como script normal
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            
+        # Caminho para o script PowerShell externo
+        script_path = os.path.join(base_path, "coletar_monitores.ps1")
+        output_path = os.path.join(tempfile.gettempdir(), "monitores_info.txt")
+        
+        # Verificar se o script existe
+        if not os.path.exists(script_path):
+            raise Exception(f"Script PowerShell não encontrado: {script_path}")
+        
+        # Executar o script PowerShell externo
+        try:
+            # Executar o script PowerShell com bypass de política de execução e passar o caminho do arquivo de saída
+            subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-File", script_path, "-OutputFilePath", output_path], check=True)
+            
+            # Verificar se o arquivo de saída foi criado
+            if not os.path.exists(output_path):
+                raise Exception(f"Arquivo de saída não foi criado: {output_path}")
+                
+            # Ler o arquivo de saída
+            with open(output_path, 'r', encoding='utf-8') as f:
+                stdout_text = f.read()
+                
+        except Exception as e:
+            # Se ocorrer qualquer erro
+            raise Exception(f"Erro ao executar o script PowerShell para obter informações do monitor: {str(e)}")
+        finally:
+            # Tentar remover o arquivo de saída
+            try:
+                if os.path.exists(output_path):
+                    os.unlink(output_path)
+            except:
+                pass  # Ignorar erros na limpeza
+
+        # Processar a saída de texto simples
+        if "NENHUM_MONITOR_DETECTADO" in stdout_text:
+            monitores_formatados.append("Nenhum monitor detectado.")
+        else:
+            # Verificar se temos informação sobre a quantidade de monitores
+            quantidade_linha = None
+            for linha in stdout_text.split('\n'):
+                if linha.startswith("QUANTIDADE_MONITORES:"):
+                    quantidade_linha = linha.replace("QUANTIDADE_MONITORES:", "").strip()
+                    break
+            
+            # Dividir a saída por monitores usando o separador
+            monitores_texto = stdout_text.split("---FIM_MONITOR---")
+            
+            for monitor_texto in monitores_texto:
+                if not monitor_texto.strip():
+                    continue
+                    
+                linhas = monitor_texto.strip().split('\n')
+                monitor_info = {}
+                
+                for linha in linhas:
+                    linha = linha.strip()
+                    if linha.startswith("MONITOR_"):
+                        continue
+                    elif linha.startswith("QUANTIDADE_MONITORES:"):
+                        continue
+                    elif linha.startswith("FABRICANTE: "):
+                        monitor_info["fabricante"] = linha.replace("FABRICANTE: ", "")
+                    elif linha.startswith("MODELO: "):
+                        monitor_info["modelo"] = linha.replace("MODELO: ", "")
+                    elif linha.startswith("TAMANHO: "):
+                        monitor_info["tamanho"] = linha.replace("TAMANHO: ", "")
+                
+                # Verificar se temos informações suficientes para este monitor
+                if not monitor_info:
+                    continue
+                
+                # Formatar a informação do monitor
+                info = f"Monitor: {monitor_info.get('modelo', 'Desconhecido')}\n"
+                info += f"Fabricante: {monitor_info.get('fabricante', 'Desconhecido')}\n"
+                info += f"Tamanho: {monitor_info.get('tamanho', 'Tamanho desconhecido')}"
+                
+                monitores_formatados.append(info)
+
+    except NotImplementedError:
+        monitores_formatados.append("Coleta de monitores não suportada neste sistema operacional.")
     except Exception as e:
         print(f"Erro ao obter informações dos monitores: {e}")
-        monitores = [{
-            "marca": "Erro",
-            "modelo": "Erro na detecção",
-            "tamanho": "N/A",
-            "resolucao": "N/A"
-        }]
-    
-    # Formatar saída
-    resultado = f"Total de monitores detectados: {len(monitores)}\n\n"
-    
-    for i, monitor in enumerate(monitores, 1):
-        resultado += f"Monitor: {i} \n"
-        resultado += f"Marca: {monitor['marca']}\n"
-        resultado += f"Modelo: {monitor['modelo']}\n"
-        resultado += f"Tamanho: {monitor['tamanho']}\n"
-        
-        # Adicionar dimensões físicas, se disponível
-        if 'dimensoes' in monitor:
-            resultado += f"Dimensões: {monitor['dimensoes']}\n"
-            
-        resultado += f"Resolução: {monitor.get('resolucao', 'Desconhecida')}"
-        
-        # Adicionar informações do adaptador, se disponível
-        if 'adaptador' in monitor:
-            resultado += f"\nAdaptador: {monitor['adaptador']}"
-            
-        # Adicionar informação de monitor primário, se disponível
-        if 'monitor_primario' in monitor:
-            resultado += f"\nMonitor Primário: {monitor['monitor_primario']}"
-            
-        # Adicionar nome do dispositivo, se disponível
-        if 'device_name' in monitor:
-            resultado += f"\nNome do Dispositivo: {monitor['device_name']}"
-        
-        if i < len(monitores):
-            resultado += "\n\n"
+        # Adicionar uma mensagem de erro clara para o relatório final
+        monitores_formatados.append(f"Falha ao obter dados do monitor. Erro: {e}")
+
+    # Se nada foi detectado, adicione uma mensagem padrão
+    if not monitores_formatados:
+        monitores_formatados.append("Nenhum monitor detectado.")
+
+    # Formatar a saída final
+    resultado = f"Total de monitores detectados: {len(monitores_formatados)}\n\n"
+    resultado += "\n\n".join(monitores_formatados)
     
     return resultado
 
