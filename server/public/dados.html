@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualização de Dados - Inventário de Hardware</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .container-fluid {
+            padding: 20px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #0d6efd;
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+        }
+        .btn-success {
+            background-color: #198754;
+            border-color: #198754;
+        }
+        .btn-success:hover {
+            background-color: #157347;
+            border-color: #146c43;
+        }
+        .table-responsive {
+            border-radius: 0 0 10px 10px;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .filters {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .table th {
+            background-color: #f1f1f1;
+        }
+        .table-hover tbody tr:hover {
+            background-color: rgba(13, 110, 253, 0.05);
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="back-link">
+            <a href="/" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Voltar para a página inicial
+            </a>
+        </div>
+        
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Inventário de Hardware</h4>
+                <a href="/exportar-excel" class="btn btn-success">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar para Excel
+                </a>
+            </div>
+            
+            <div class="filters">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <input type="text" id="filtroSecretaria" class="form-control" placeholder="Filtrar por Secretaria">
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <input type="text" id="filtroSetor" class="form-control" placeholder="Filtrar por Setor">
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <input type="text" id="filtroNome" class="form-control" placeholder="Filtrar por Nome">
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button id="btnLimparFiltros" class="btn btn-outline-secondary w-100">Limpar Filtros</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <div id="loading" class="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+                
+                <table id="tabelaDados" class="table table-striped table-hover" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Secretaria</th>
+                            <th>Setor</th>
+                            <th>Matrícula</th>
+                            <th>Nome Completo</th>
+                            <th>Nome do Dispositivo</th>
+                            <th>Processador</th>
+                            <th>Disco</th>
+                            <th>RAM</th>
+                            <th>Monitores</th>
+                            <th>Data da Coleta</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dadosTabela">
+                        <!-- Os dados serão inseridos aqui via JavaScript -->
+                    </tbody>
+                </table>
+                
+                <div id="semDados" class="alert alert-info m-3" style="display: none;">
+                    Nenhum dado encontrado. Utilize o coletor para registrar informações de hardware.
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elementos DOM
+            const loading = document.getElementById('loading');
+            const tabelaDados = document.getElementById('tabelaDados');
+            const dadosTabela = document.getElementById('dadosTabela');
+            const semDados = document.getElementById('semDados');
+            const filtroSecretaria = document.getElementById('filtroSecretaria');
+            const filtroSetor = document.getElementById('filtroSetor');
+            const filtroNome = document.getElementById('filtroNome');
+            const btnLimparFiltros = document.getElementById('btnLimparFiltros');
+            
+            // Armazenar dados originais
+            let dadosOriginais = [];
+            
+            // Função para carregar dados
+            async function carregarDados() {
+                try {
+                    const response = await fetch('/api/hardware-data');
+                    const resultado = await response.json();
+                    
+                    if (resultado.success && resultado.data.length > 0) {
+                        dadosOriginais = resultado.data;
+                        renderizarDados(dadosOriginais);
+                        tabelaDados.style.display = 'table';
+                        semDados.style.display = 'none';
+                    } else {
+                        tabelaDados.style.display = 'none';
+                        semDados.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar dados:', error);
+                    tabelaDados.style.display = 'none';
+                    semDados.textContent = 'Erro ao carregar dados. Tente novamente mais tarde.';
+                    semDados.style.display = 'block';
+                } finally {
+                    loading.style.display = 'none';
+                }
+            }
+            
+            // Função para renderizar dados na tabela
+            function renderizarDados(dados) {
+                dadosTabela.innerHTML = '';
+                
+                dados.forEach(item => {
+                    const row = document.createElement('tr');
+                    
+                    // Formatar monitores
+                    let monitoresStr = '';
+                    if (item.monitores && item.monitores.length > 0) {
+                        monitoresStr = item.monitores
+                            .map(m => `${m.marca || 'N/A'} ${m.modelo || 'N/A'} ${m.tamanho || 'N/A'}`)
+                            .join(', ');
+                    } else {
+                        monitoresStr = 'Nenhum monitor detectado';
+                    }
+                    
+                    // Formatar data
+                    const data = new Date(item.dataColeta);
+                    const dataFormatada = data.toLocaleString('pt-BR');
+                    
+                    // Criar células da linha
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.secretaria}</td>
+                        <td>${item.setor}</td>
+                        <td>${item.matricula}</td>
+                        <td>${item.nomeCompleto}</td>
+                        <td>${item.nomeDispositivo}</td>
+                        <td>${item.processador}</td>
+                        <td>${item.disco}</td>
+                        <td>${item.ram}</td>
+                        <td>${monitoresStr}</td>
+                        <td>${dataFormatada}</td>
+                    `;
+                    
+                    dadosTabela.appendChild(row);
+                });
+            }
+            
+            // Função para aplicar filtros
+            function aplicarFiltros() {
+                const secretariaFiltro = filtroSecretaria.value.toLowerCase();
+                const setorFiltro = filtroSetor.value.toLowerCase();
+                const nomeFiltro = filtroNome.value.toLowerCase();
+                
+                const dadosFiltrados = dadosOriginais.filter(item => {
+                    const secretariaMatch = item.secretaria.toLowerCase().includes(secretariaFiltro);
+                    const setorMatch = item.setor.toLowerCase().includes(setorFiltro);
+                    const nomeMatch = item.nomeCompleto.toLowerCase().includes(nomeFiltro);
+                    
+                    return secretariaMatch && setorMatch && nomeMatch;
+                });
+                
+                renderizarDados(dadosFiltrados);
+                
+                if (dadosFiltrados.length === 0) {
+                    tabelaDados.style.display = 'none';
+                    semDados.textContent = 'Nenhum resultado encontrado para os filtros aplicados.';
+                    semDados.style.display = 'block';
+                } else {
+                    tabelaDados.style.display = 'table';
+                    semDados.style.display = 'none';
+                }
+            }
+            
+            // Event listeners para filtros
+            filtroSecretaria.addEventListener('input', aplicarFiltros);
+            filtroSetor.addEventListener('input', aplicarFiltros);
+            filtroNome.addEventListener('input', aplicarFiltros);
+            
+            // Event listener para limpar filtros
+            btnLimparFiltros.addEventListener('click', function() {
+                filtroSecretaria.value = '';
+                filtroSetor.value = '';
+                filtroNome.value = '';
+                renderizarDados(dadosOriginais);
+                tabelaDados.style.display = 'table';
+                semDados.style.display = 'none';
+            });
+            
+            // Carregar dados ao iniciar
+            carregarDados();
+        });
+    </script>
+</body>
+</html>

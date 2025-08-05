@@ -1,0 +1,15 @@
+# Python artifacts
+__pycache__/
+build/
+dist/
+*.spec
+venv/
+
+# Node.js dependencies
+node_modules/
+
+# Build output
+builds/
+
+# Env files
+.env
