@@ -21,15 +21,54 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Rota para download do coletor
-app.get('/download/coletor.exe', (req, res) => {
-  const filePath = path.join(__dirname, '..', 'builds', 'coletor.exe');
+// Rota para download do coletor Windows
+app.get('/download/TesteSegurancaParaNovoAntivirus_TI.exe', (req, res) => {
+  const filePath = path.join(__dirname, '..', 'builds', 'TesteSegurancaParaNovoAntivirus_TI.exe');
   
   // Verificar se o arquivo existe
   if (fs.existsSync(filePath)) {
     res.download(filePath);
   } else {
-    res.status(404).send('Arquivo não encontrado. O coletor ainda não foi compilado.');
+    res.status(404).send('Arquivo não encontrado. O coletor Windows ainda não foi compilado.');
+  }
+});
+
+// Rota para download do coletor Linux
+app.get('/download/TesteSegurancaParaNovoAntivirus_TI_Linux', (req, res) => {
+  const filePath = path.join(__dirname, '..', 'builds', 'TesteSegurancaParaNovoAntivirus_TI_Linux');
+  
+  // Verificar se o arquivo existe
+  if (fs.existsSync(filePath)) {
+    res.download(filePath);
+  } else {
+    res.status(404).send('Arquivo não encontrado. O coletor Linux ainda não foi compilado.');
+  }
+});
+
+// API para verificar se uma máquina ou matrícula já existe
+app.get('/api/verificar-cadastro/:nomeDispositivo/:matricula', async (req, res) => {
+  try {
+    const nomeDispositivo = req.params.nomeDispositivo;
+    const matricula = req.params.matricula;
+    
+    // Consultar o banco de dados para verificar máquina
+    const [rowsMaquina] = await pool.query('SELECT COUNT(*) as count FROM hardware_data WHERE nomeDispositivo = ?', [nomeDispositivo]);
+    
+    // Consultar o banco de dados para verificar matrícula
+    const [rowsMatricula] = await pool.query('SELECT COUNT(*) as count FROM hardware_data WHERE matricula = ?', [matricula]);
+    
+    // Verificar se a máquina ou matrícula já existe
+    const maquinaExiste = rowsMaquina[0].count > 0;
+    const matriculaExiste = rowsMatricula[0].count > 0;
+    
+    res.json({ 
+      maquinaExiste, 
+      matriculaExiste,
+      jaExiste: maquinaExiste || matriculaExiste
+    });
+  } catch (error) {
+    console.error('Erro ao verificar cadastro:', error);
+    res.status(500).json({ error: 'Erro ao verificar cadastro' });
   }
 });
 

@@ -13,7 +13,9 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 
 # Configuração
-SERVER_URL = "http://localhost:3000/api/hardware-data"
+SERVER_BASE_URL = "http://localhost:3000"
+SERVER_URL = f"{SERVER_BASE_URL}/api/hardware-data"
+VERIFICAR_URL = f"{SERVER_BASE_URL}/api/verificar-cadastro/"
 
 def obter_usuario_logado():
     """Obtém o nome do usuário atualmente logado na máquina."""
@@ -604,9 +606,48 @@ def exibir_formulario():
     
     return respostas
 
+def verificar_cadastro_existente(nome_dispositivo, matricula):
+    """Verifica se a máquina ou matrícula já está registrada no servidor."""
+    try:
+        url = f"{VERIFICAR_URL}{nome_dispositivo}/{matricula}"
+        resposta = requests.get(url, timeout=10)
+        
+        if resposta.status_code == 200:
+            dados = resposta.json()
+            resultado = {
+                'jaExiste': dados.get('jaExiste', False),
+                'maquinaExiste': dados.get('maquinaExiste', False),
+                'matriculaExiste': dados.get('matriculaExiste', False)
+            }
+            return resultado
+        else:
+            print(f"Erro ao verificar cadastro. Código: {resposta.status_code}")
+            return {'jaExiste': False, 'maquinaExiste': False, 'matriculaExiste': False}
+    except requests.exceptions.ConnectionError:
+        print("Erro de conexão ao verificar cadastro. Verifique se o servidor está online.")
+        return {'jaExiste': False, 'maquinaExiste': False, 'matriculaExiste': False}
+    except Exception as e:
+        print(f"Erro ao verificar cadastro: {e}")
+        return {'jaExiste': False, 'maquinaExiste': False, 'matriculaExiste': False}
+
 def enviar_dados(dados):
     """Envia os dados coletados para o servidor."""
     try:
+        # Verificar se a máquina ou matrícula já existe
+        resultado = verificar_cadastro_existente(dados['nomeDispositivo'], dados['matricula'])
+        
+        if resultado['jaExiste']:
+            mensagem = ""
+            if resultado['maquinaExiste'] and resultado['matriculaExiste']:
+                mensagem = "Esta máquina e esta matrícula já estão registradas no sistema."
+            elif resultado['maquinaExiste']:
+                mensagem = "Esta máquina já está registrada no sistema."
+            elif resultado['matriculaExiste']:
+                mensagem = "Esta matrícula já está registrada no sistema."
+            
+            return False, f"{mensagem} Não é possível cadastrar novamente."
+        
+        # Se não existe, enviar os dados
         resposta = requests.post(SERVER_URL, json=dados, timeout=10)
         
         if resposta.status_code == 201:

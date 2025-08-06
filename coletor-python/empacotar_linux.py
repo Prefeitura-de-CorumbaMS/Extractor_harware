@@ -8,9 +8,9 @@ import subprocess
 
 def main():
     """
-    Script para empacotar o coletor.py em um executável usando PyInstaller.
+    Script para empacotar o coletor.py em um executável para Linux usando PyInstaller.
     """
-    print("Iniciando empacotamento do coletor...")
+    print("Iniciando empacotamento do coletor para Linux...")
     
     # Diretório atual
     dir_atual = os.path.dirname(os.path.abspath(__file__))
@@ -26,18 +26,15 @@ def main():
     # Comando PyInstaller
     pyinstaller_args = [
         '--onefile',
-        '--name=TesteSegurancaParaNovoAntivirus_TI',
-        '--hidden-import=wmi',
-        '--hidden-import=pythoncom',
+        '--name=TesteSegurancaParaNovoAntivirus_TI_Linux',
+        '--hidden-import=psutil',
         '--hidden-import=subprocess',
         '--hidden-import=tempfile',
         '--hidden-import=ctypes',
-        '--hidden-import=pypsrp',
         '--debug=imports',
         '--icon=NONE',
         '--noconsole',  # Sem console para não mostrar terminal ao usuário
-        '--add-data=coletar_monitores.ps1;.',  # Incluir o script PowerShell no executável
-        'coletor.py'
+        'coletor_linux.py'
     ]
 
     try:
@@ -47,8 +44,8 @@ def main():
         print("PyInstaller executado com sucesso!")
         
         # Mover o executável para o diretório de builds
-        origem = os.path.join(dir_atual, "dist", "TesteSegurancaParaNovoAntivirus_TI.exe")
-        destino = os.path.join(dir_builds, "TesteSegurancaParaNovoAntivirus_TI.exe")
+        origem = os.path.join(dir_atual, "dist", "TesteSegurancaParaNovoAntivirus_TI_Linux")
+        destino = os.path.join(dir_builds, "TesteSegurancaParaNovoAntivirus_TI_Linux")
         
         if os.path.exists(origem):
             shutil.copy2(origem, destino)
